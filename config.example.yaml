@@ -1,0 +1,10 @@
+# NAS Control — example configuration
+# Copy this file to config.yaml and adjust the values.
+
+listen_addr: "0.0.0.0:7654"
+
+nas:
+  url: "http://192.168.1.100:5000"
+  user: "admin"
+  pass: "changeme"
+  mac: "00:11:22:33:44:55"

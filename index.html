@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAS Control</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  .container { max-width: 480px; width: 100%; padding: 2rem; }
+  h1 { font-size: 1.8rem; margin-bottom: 0.5rem; color: #f8fafc; }
+  .subtitle { color: #94a3b8; margin-bottom: 2rem; font-size: 0.95rem; }
+  .status-bar { background: #1e293b; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; }
+  .status-bar .label { font-size: 0.9rem; color: #94a3b8; }
+  .status-bar .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 0.5rem; }
+  .status-bar .state { display: flex; align-items: center; font-weight: 600; }
+  .dot.online { background: #22c55e; box-shadow: 0 0 8px #22c55e88; }
+  .dot.offline { background: #ef4444; box-shadow: 0 0 8px #ef444488; }
+  .dot.loading { background: #f59e0b; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .actions { display: flex; gap: 0.75rem; margin-bottom: 2rem; }
+  button { flex: 1; padding: 0.75rem; border: none; border-radius: 10px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: transform 0.1s, opacity 0.2s; }
+  button:active { transform: scale(0.97); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-on { background: #22c55e; color: #052e16; }
+  .btn-off { background: #ef4444; color: #450a0a; }
+  .log { background: #1e293b; border-radius: 12px; padding: 1rem 1.25rem; font-family: "SF Mono", "Fira Code", monospace; font-size: 0.8rem; color: #94a3b8; max-height: 160px; overflow-y: auto; }
+  .log p { margin-bottom: 0.25rem; }
+  .log .ok { color: #22c55e; }
+  .log .err { color: #ef4444; }
+  .api-info { margin-top: 2rem; background: #1e293b; border-radius: 12px; padding: 1.25rem; }
+  .api-info h2 { font-size: 1rem; margin-bottom: 0.75rem; color: #f8fafc; }
+  .endpoint { display: flex; align-items: baseline; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; }
+  .method { font-family: monospace; font-weight: 700; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.75rem; }
+  .method.get { background: #1d4ed8; color: #bfdbfe; }
+  .method.post { background: #b45309; color: #fef3c7; }
+  .path { font-family: monospace; color: #e2e8f0; }
+  .desc { color: #64748b; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>NAS Control</h1>
+  <p class="subtitle">Synology NAS &mdash; <span id="nasIp"></span></p>
+
+  <div class="status-bar">
+    <span class="label">Status</span>
+    <span class="state"><span id="dot" class="dot loading"></span><span id="stateText">...</span></span>
+  </div>
+
+  <div class="actions">
+    <button class="btn-on" id="btnOn" onclick="doAction('/on')">Einschalten</button>
+    <button class="btn-off" id="btnOff" onclick="doAction('/off')">Ausschalten</button>
+  </div>
+
+  <div class="log" id="log"></div>
+
+  <div class="api-info">
+    <h2>API Endpoints</h2>
+    <div class="endpoint"><span class="method get">GET</span><span class="path">/state</span><span class="desc">&mdash; NAS online/offline</span></div>
+    <div class="endpoint"><span class="method get">GET</span><span class="path">/info</span><span class="desc">&mdash; NAS connection info</span></div>
+    <div class="endpoint"><span class="method post">POST</span><span class="path">/on</span><span class="desc">&mdash; Wake-on-LAN</span></div>
+    <div class="endpoint"><span class="method post">POST</span><span class="path">/off</span><span class="desc">&mdash; Shutdown</span></div>
+  </div>
+</div>
+<script>
+  const dot = document.getElementById("dot");
+  const stateText = document.getElementById("stateText");
+  const logEl = document.getElementById("log");
+
+  function log(msg, cls) {
+    const p = document.createElement("p");
+    p.className = cls || "";
+    const now = new Date().toLocaleTimeString();
+    p.textContent = now + "  " + msg;
+    logEl.prepend(p);
+  }
+
+  async function checkState() {
+    dot.className = "dot loading";
+    stateText.textContent = "...";
+    try {
+      const r = await fetch("/state");
+      const d = await r.json();
+      const on = d.message === "online";
+      dot.className = "dot " + (on ? "online" : "offline");
+      stateText.textContent = on ? "Online" : "Offline";
+    } catch(e) {
+      dot.className = "dot offline";
+      stateText.textContent = "Fehler";
+    }
+  }
+
+  async function doAction(path) {
+    const name = path === "/on" ? "Einschalten" : "Ausschalten";
+    document.getElementById("btnOn").disabled = true;
+    document.getElementById("btnOff").disabled = true;
+    log(name + " ...");
+    try {
+      const r = await fetch(path, {method: "POST"});
+      const d = await r.json();
+      if (d.status === "ok") { log(d.message, "ok"); }
+      else { log(d.message, "err"); }
+    } catch(e) { log("Fehler: " + e.message, "err"); }
+    document.getElementById("btnOn").disabled = false;
+    document.getElementById("btnOff").disabled = false;
+    setTimeout(checkState, 3000);
+  }
+
+  // Load NAS IP from info endpoint
+  fetch("/info").then(r => r.json()).then(d => {
+    document.getElementById("nasIp").textContent = d.nas_ip;
+  });
+
+  checkState();
+  setInterval(checkState, 30000);
+</script>
+</body>
+</html>
