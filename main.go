@@ -305,6 +305,21 @@ func logPath() string {
 	return "nas-control.log"
 }
 
+// reopenWriter is an io.Writer that opens the file for each write.
+// This ensures the log file is recreated if deleted while the server runs.
+type reopenWriter struct {
+	path string
+}
+
+func (w *reopenWriter) Write(p []byte) (int, error) {
+	f, err := os.OpenFile(w.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+	return f.Write(p)
+}
+
 // isListening checks whether a server is already listening on the configured address.
 func isListening(addr string) bool {
 	conn, err := net.DialTimeout("tcp", addr, 500*time.Millisecond)
@@ -354,25 +369,14 @@ func main() {
 			os.Exit(1)
 		}
 
-		logFile, err := os.OpenFile(logPath(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to open log file: %v\n", err)
-			os.Exit(1)
-		}
-
 		child := exec.Command(exe, "start")
 		child.Env = append(os.Environ(), "_NAS_CONTROL_DAEMON=1")
 		child.Dir = filepath.Dir(exe)
-		child.Stdout = logFile
-		child.Stderr = logFile
 
 		if err := child.Start(); err != nil {
-			logFile.Close()
 			fmt.Fprintf(os.Stderr, "failed to start daemon: %v\n", err)
 			os.Exit(1)
 		}
-
-		logFile.Close()
 		fmt.Printf("nas-control started (pid %d)\n", child.Process.Pid)
 
 	case "stop":
@@ -399,6 +403,10 @@ func main() {
 
 // runServer starts the HTTP server. Called in the daemonised child process.
 func runServer() {
+	os.Remove(logPath())
+	lw := &reopenWriter{path: logPath()}
+	log.SetOutput(lw)
+
 	shutdown := make(chan struct{})
 
 	mux := http.NewServeMux()
