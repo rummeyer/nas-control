@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.0] - 2026-03-26
+
+### Added
+- Version constant (`1.0.0`) exposed via `/info` endpoint
+- Web UI screenshot in README
+
+### Changed
+- First stable release
+
 ## [0.2.0] - 2026-03-25
 
 ### Added
