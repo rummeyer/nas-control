@@ -20,7 +20,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const version = "1.0.0"
+const version = "1.0.1"
 
 // NASConfig holds connection details for the target Synology NAS.
 type NASConfig struct {
@@ -247,7 +247,11 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 // handleInfo returns basic NAS connection info as JSON.
 func handleInfo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"nas_ip": nasHost(), "version": version})
+	json.NewEncoder(w).Encode(map[string]string{
+		"nas_ip":  nasHost(),
+		"mac":     config.NAS.MAC,
+		"version": version,
+	})
 }
 
 // privateRanges contains the RFC 1918 / RFC 4193 CIDR blocks used to

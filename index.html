@@ -7,11 +7,13 @@
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-  .container { max-width: 480px; width: 100%; padding: 2rem; }
-  .logo-row { display: flex; align-items: center; gap: 1.5rem; margin-bottom: 0.5rem; }
+  .container { max-width: 720px; width: 100%; padding: 2rem; }
+  .header { display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 1.5rem; margin-bottom: 2rem; }
+  .logo { grid-row: 1; grid-column: 1; display: flex; align-items: center; }
   .logo svg { display: block; }
-  h1 { font-size: 1.8rem; color: #f8fafc; }
-  .subtitle { color: #94a3b8; margin-bottom: 2rem; font-size: 0.95rem; }
+  h1 { grid-row: 1; grid-column: 2; font-size: 1.8rem; color: #f8fafc; align-self: center; text-align: right; }
+  .subtitle { grid-row: 2; grid-column: 1; color: #94a3b8; font-size: 0.95rem; }
+  .ver-row { grid-row: 2; grid-column: 2; color: #94a3b8; font-size: 0.95rem; display: flex; align-items: center; justify-content: flex-end; }
   .status-bar { background: #1e293b; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; }
   .status-bar .label { font-size: 0.9rem; color: #94a3b8; }
   .status-bar .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 0.5rem; }
@@ -26,7 +28,7 @@
   button:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn-on { background: #22c55e; color: #052e16; }
   .btn-off { background: #ef4444; color: #450a0a; }
-  .log { background: #1e293b; border-radius: 12px; padding: 1rem 1.25rem; font-family: "SF Mono", "Fira Code", monospace; font-size: 0.8rem; color: #94a3b8; max-height: 160px; overflow-y: auto; }
+  .log { background: #1e293b; border-radius: 12px; padding: 1rem 1.25rem; font-family: "SF Mono", "Fira Code", monospace; font-size: 0.8rem; color: #94a3b8; height: 11.5rem; overflow-y: auto; }
   .log p { margin-bottom: 0.25rem; }
   .log .ok { color: #22c55e; }
   .log .err { color: #ef4444; }
@@ -36,13 +38,14 @@
   .method { font-family: monospace; font-weight: 700; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.75rem; }
   .method.get { background: #1d4ed8; color: #bfdbfe; }
   .method.post { background: #b45309; color: #fef3c7; }
-  .path { font-family: monospace; color: #e2e8f0; }
+  .path { font-family: monospace; color: #e2e8f0; text-decoration: none; }
+  a.path:hover { text-decoration: underline; }
   .desc { color: #64748b; }
 </style>
 </head>
 <body>
 <div class="container">
-  <div class="logo-row">
+  <div class="header">
     <div class="logo">
       <svg xmlns="http://www.w3.org/2000/svg" width="64" height="72" viewBox="0 0 64 72" fill="none">
         <!-- NAS enclosure -->
@@ -82,8 +85,9 @@
       </svg>
     </div>
     <h1>Synology<br>NAS-Control</h1>
+    <div class="subtitle"><span id="nasIp"></span><br><span id="nasMac"></span></div>
+    <div class="ver-row"><span id="ver"></span></div>
   </div>
-  <p class="subtitle"><span id="nasIp"></span></p>
 
   <div class="status-bar">
     <span class="label">Status</span>
@@ -99,11 +103,11 @@
 
   <div class="api-info">
     <h2>API Endpoints</h2>
-    <div class="endpoint"><span class="method get">GET</span><span class="path">/state</span><span class="desc">&mdash; NAS online/offline</span></div>
-    <div class="endpoint"><span class="method get">GET</span><span class="path">/info</span><span class="desc">&mdash; NAS connection info</span></div>
-    <div class="endpoint"><span class="method post">POST</span><span class="path">/on</span><span class="desc">&mdash; Wake-on-LAN</span></div>
-    <div class="endpoint"><span class="method post">POST</span><span class="path">/off</span><span class="desc">&mdash; Shutdown</span></div>
-    <div class="endpoint"><span class="method post">POST</span><span class="path">/stop</span><span class="desc">&mdash; Stop nas-control server</span></div>
+    <div class="endpoint"><span class="method get">GET</span><a class="path" href="/state">/state</a><span class="desc">&mdash; NAS online/offline</span></div>
+    <div class="endpoint"><span class="method get">GET</span><a class="path" href="/info">/info</a><span class="desc">&mdash; NAS connection info</span></div>
+    <div class="endpoint"><span class="method post">POST</span><a class="path" href="/on">/on</a><span class="desc">&mdash; Wake-on-LAN</span></div>
+    <div class="endpoint"><span class="method post">POST</span><a class="path" href="/off">/off</a><span class="desc">&mdash; Shutdown</span></div>
+    <div class="endpoint"><span class="method post">POST</span><a class="path" href="/stop">/stop</a><span class="desc">&mdash; Stop nas-control server</span></div>
   </div>
 </div>
 <script>
@@ -153,6 +157,8 @@
   // Load NAS IP from info endpoint
   fetch("/info").then(r => r.json()).then(d => {
     document.getElementById("nasIp").textContent = d.nas_ip;
+    document.getElementById("nasMac").textContent = d.mac;
+    document.getElementById("ver").textContent = "v" + d.version;
   });
 
   checkState();

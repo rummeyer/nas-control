@@ -4,7 +4,7 @@ A lightweight HTTP server to remotely control a Synology NAS from your local net
 
 ## Screenshot
 
-<img src="screenshot.png" alt="NAS Control Web UI" width="400">
+<img src="screenshot.png" alt="NAS Control Web UI" width="600">
 
 ## Features
 
@@ -53,7 +53,7 @@ nas:
   url: "http://192.168.1.100:5000"
   user: "nas-control"
   pass: "your-password"
-  mac: "00:11:32:CA:B0:95"
+  mac: "AA:BB:CC:DD:EE:FF"
 ```
 
 | Field | Description |
@@ -84,7 +84,7 @@ Use this user's credentials in your `config.yaml`.
 | Method | Path     | Description                    |
 |--------|----------|--------------------------------|
 | GET    | `/`      | Web UI                         |
-| GET    | `/info`  | NAS connection info (JSON)     |
+| GET    | `/info`  | NAS connection info, MAC, version (JSON) |
 | GET    | `/state` | Online/offline status (JSON)   |
 | POST   | `/on`    | Send Wake-on-LAN magic packet  |
 | POST   | `/off`   | Shut down via Synology DSM API |
@@ -93,7 +93,7 @@ Use this user's credentials in your `config.yaml`.
 All endpoints return JSON:
 
 ```json
-{"status": "ok", "message": "Wake-on-LAN packet sent to 00:11:32:CA:B0:95"}
+{"status": "ok", "message": "Wake-on-LAN packet sent to AA:BB:CC:DD:EE:FF"}
 ```
 
 ## Running Tests

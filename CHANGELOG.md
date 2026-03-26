@@ -2,10 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.1] - 2026-03-26
+
+### Added
+- MAC address exposed via `/info` endpoint and displayed in web UI
+- Clickable API endpoint paths in web UI
+- Version displayed in web UI header
+
+### Changed
+- Web UI layout: grid-based header, wider container (720px), fixed-height log area
+- Updated screenshot in README
+
 ## [1.0.0] - 2026-03-26
 
 ### Added
-- Version constant (`1.0.0`) exposed via `/info` endpoint
+- Version constant exposed via `/info` endpoint
 - Web UI screenshot in README
 
 ### Changed
