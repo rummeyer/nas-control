@@ -2,6 +2,10 @@
 
 A lightweight HTTP server to remotely control a Synology NAS from your local network. Runs as a background daemon and provides a minimal web UI plus a JSON API for wake, shutdown, and status checks.
 
+## Screenshot
+
+<img src="screenshot.png" alt="NAS Control Web UI" width="400">
+
 ## Features
 
 - **Wake-on-LAN** — send a magic packet to power on the NAS
