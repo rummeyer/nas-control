@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -13,9 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -298,51 +297,36 @@ func localOnly(next http.Handler) http.Handler {
 	})
 }
 
-// dataDir returns the directory next to the executable, used for pid/log files.
-func dataDir() string {
-	if exe, err := os.Executable(); err == nil {
-		return filepath.Dir(exe)
-	}
-	return "."
-}
-
-// pidPath returns the path to the PID file, placed next to the executable.
-func pidPath() string {
-	return filepath.Join(dataDir(), "nas-control.pid")
-}
-
 // logPath returns the path to the log file, placed next to the executable.
 func logPath() string {
-	return filepath.Join(dataDir(), "nas-control.log")
+	if exe, err := os.Executable(); err == nil {
+		return filepath.Join(filepath.Dir(exe), "nas-control.log")
+	}
+	return "nas-control.log"
 }
 
-// readPID reads the PID from the PID file. Returns 0 if not found or invalid.
-func readPID() int {
-	data, err := os.ReadFile(pidPath())
-	if err != nil {
-		return 0
-	}
-	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
-	if err != nil {
-		return 0
-	}
-	return pid
-}
-
-// isRunning checks whether a process with the given PID exists.
-func isRunning(pid int) bool {
-	if pid <= 0 {
-		return false
-	}
-	proc, err := os.FindProcess(pid)
+// isListening checks whether a server is already listening on the configured address.
+func isListening(addr string) bool {
+	conn, err := net.DialTimeout("tcp", addr, 500*time.Millisecond)
 	if err != nil {
 		return false
 	}
-	// Signal 0 checks if the process exists without actually signalling it.
-	return proc.Signal(syscall.Signal(0)) == nil
+	conn.Close()
+	return true
+}
+
+// controlURL returns the base URL for reaching the running server from localhost.
+func controlURL(addr string) string {
+	host, port, _ := net.SplitHostPort(addr)
+	if host == "" || host == "0.0.0.0" {
+		host = "127.0.0.1"
+	}
+	return "http://" + net.JoinHostPort(host, port)
 }
 
 func main() {
+	loadConfig()
+
 	cmd := "start"
 	if len(os.Args) > 1 {
 		cmd = os.Args[1]
@@ -357,9 +341,9 @@ func main() {
 			return
 		}
 
-		// Check if already running.
-		if pid := readPID(); isRunning(pid) {
-			fmt.Fprintf(os.Stderr, "nas-control is already running (pid %d)\n", pid)
+		// Check if already running by probing the listen address.
+		if isListening(config.ListenAddr) {
+			fmt.Fprintf(os.Stderr, "nas-control is already running on %s\n", config.ListenAddr)
 			os.Exit(1)
 		}
 
@@ -388,32 +372,24 @@ func main() {
 			os.Exit(1)
 		}
 
-		// Write PID file.
-		if err := os.WriteFile(pidPath(), []byte(strconv.Itoa(child.Process.Pid)), 0644); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to write pid file: %v\n", err)
-			// Kill the child since we can't track it.
-			child.Process.Kill()
-			os.Exit(1)
-		}
-
 		logFile.Close()
 		fmt.Printf("nas-control started (pid %d)\n", child.Process.Pid)
 
 	case "stop":
-		pid := readPID()
-		if !isRunning(pid) {
+		if !isListening(config.ListenAddr) {
 			fmt.Fprintln(os.Stderr, "nas-control is not running")
 			os.Exit(1)
 		}
 
-		proc, _ := os.FindProcess(pid)
-		if err := proc.Signal(syscall.SIGTERM); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to stop process %d: %v\n", pid, err)
+		client := &http.Client{Timeout: 5 * time.Second}
+		resp, err := client.Post(controlURL(config.ListenAddr)+"/stop", "", nil)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to stop server: %v\n", err)
 			os.Exit(1)
 		}
+		resp.Body.Close()
 
-		os.Remove(pidPath())
-		fmt.Printf("nas-control stopped (pid %d)\n", pid)
+		fmt.Println("nas-control stopped")
 
 	default:
 		fmt.Fprintf(os.Stderr, "usage: nas-control [start|stop]\n")
@@ -423,10 +399,7 @@ func main() {
 
 // runServer starts the HTTP server. Called in the daemonised child process.
 func runServer() {
-	loadConfig()
-
-	// Write our own PID in case the parent wrote a stale one.
-	os.WriteFile(pidPath(), []byte(strconv.Itoa(os.Getpid())), 0644)
+	shutdown := make(chan struct{})
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleIndex)
@@ -434,9 +407,31 @@ func runServer() {
 	mux.HandleFunc("/on", handleOn)
 	mux.HandleFunc("/off", handleOff)
 	mux.HandleFunc("/state", handleState)
+	mux.HandleFunc("/stop", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		log.Println("Shutdown requested via /stop")
+		writeJSON(w, http.StatusOK, Response{"ok", "server stopping"})
+		close(shutdown)
+	})
+
+	srv := &http.Server{
+		Addr:    config.ListenAddr,
+		Handler: localOnly(mux),
+	}
+
+	go func() {
+		<-shutdown
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		srv.Shutdown(ctx)
+	}()
 
 	log.Printf("NAS Control Server starting on %s", config.ListenAddr)
-	if err := http.ListenAndServe(config.ListenAddr, localOnly(mux)); err != nil {
+	if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
+	log.Println("Server stopped")
 }
