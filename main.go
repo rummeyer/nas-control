@@ -139,13 +139,13 @@ func handleOn(w http.ResponseWriter, r *http.Request) {
 // the Synology DSM API (SYNO.API.Auth) and then calling SYNO.Core.System shutdown.
 func handleOff(w http.ResponseWriter, r *http.Request) {
 	baseURL := strings.TrimRight(config.NAS.URL, "/")
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := &http.Client{Timeout: 30 * time.Second}
 
 	// Authenticate to obtain a session ID.
 	loginData := url.Values{
 		"api":     {"SYNO.API.Auth"},
 		"method":  {"login"},
-		"version": {"3"},
+		"version": {"6"},
 		"account": {config.NAS.User},
 		"passwd":  {config.NAS.Pass},
 		"format":  {"sid"},
