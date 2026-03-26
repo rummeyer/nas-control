@@ -5,13 +5,17 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -294,13 +298,135 @@ func localOnly(next http.Handler) http.Handler {
 	})
 }
 
+// dataDir returns the directory next to the executable, used for pid/log files.
+func dataDir() string {
+	if exe, err := os.Executable(); err == nil {
+		return filepath.Dir(exe)
+	}
+	return "."
+}
+
+// pidPath returns the path to the PID file, placed next to the executable.
+func pidPath() string {
+	return filepath.Join(dataDir(), "nas-control.pid")
+}
+
+// logPath returns the path to the log file, placed next to the executable.
+func logPath() string {
+	return filepath.Join(dataDir(), "nas-control.log")
+}
+
+// readPID reads the PID from the PID file. Returns 0 if not found or invalid.
+func readPID() int {
+	data, err := os.ReadFile(pidPath())
+	if err != nil {
+		return 0
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil {
+		return 0
+	}
+	return pid
+}
+
+// isRunning checks whether a process with the given PID exists.
+func isRunning(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+	// Signal 0 checks if the process exists without actually signalling it.
+	return proc.Signal(syscall.Signal(0)) == nil
+}
+
 func main() {
+	cmd := "start"
+	if len(os.Args) > 1 {
+		cmd = os.Args[1]
+	}
+
+	switch cmd {
+	case "start":
+		// If we are the forked child, run the server.
+		if os.Getenv("_NAS_CONTROL_DAEMON") == "1" {
+			os.Unsetenv("_NAS_CONTROL_DAEMON")
+			runServer()
+			return
+		}
+
+		// Check if already running.
+		if pid := readPID(); isRunning(pid) {
+			fmt.Fprintf(os.Stderr, "nas-control is already running (pid %d)\n", pid)
+			os.Exit(1)
+		}
+
+		// Re-exec ourselves as a background process.
+		exe, err := os.Executable()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "cannot determine executable path: %v\n", err)
+			os.Exit(1)
+		}
+
+		logFile, err := os.OpenFile(logPath(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to open log file: %v\n", err)
+			os.Exit(1)
+		}
+
+		child := exec.Command(exe, "start")
+		child.Env = append(os.Environ(), "_NAS_CONTROL_DAEMON=1")
+		child.Dir = filepath.Dir(exe)
+		child.Stdout = logFile
+		child.Stderr = logFile
+
+		if err := child.Start(); err != nil {
+			logFile.Close()
+			fmt.Fprintf(os.Stderr, "failed to start daemon: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Write PID file.
+		if err := os.WriteFile(pidPath(), []byte(strconv.Itoa(child.Process.Pid)), 0644); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to write pid file: %v\n", err)
+			// Kill the child since we can't track it.
+			child.Process.Kill()
+			os.Exit(1)
+		}
+
+		logFile.Close()
+		fmt.Printf("nas-control started (pid %d)\n", child.Process.Pid)
+
+	case "stop":
+		pid := readPID()
+		if !isRunning(pid) {
+			fmt.Fprintln(os.Stderr, "nas-control is not running")
+			os.Exit(1)
+		}
+
+		proc, _ := os.FindProcess(pid)
+		if err := proc.Signal(syscall.SIGTERM); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to stop process %d: %v\n", pid, err)
+			os.Exit(1)
+		}
+
+		os.Remove(pidPath())
+		fmt.Printf("nas-control stopped (pid %d)\n", pid)
+
+	default:
+		fmt.Fprintf(os.Stderr, "usage: nas-control [start|stop]\n")
+		os.Exit(1)
+	}
+}
+
+// runServer starts the HTTP server. Called in the daemonised child process.
+func runServer() {
 	loadConfig()
 
-	// Allow overriding the listen address via command line argument.
-	if len(os.Args) > 1 {
-		config.ListenAddr = os.Args[1]
-	}
+	// Write our own PID in case the parent wrote a stale one.
+	os.WriteFile(pidPath(), []byte(strconv.Itoa(os.Getpid())), 0644)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleIndex)
