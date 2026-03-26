@@ -28,6 +28,17 @@ To stop the server:
 
 Log output is written to `nas-control.log` next to the binary.
 
+### Usage
+
+```
+nas-control [start|stop]
+```
+
+| Command | Description |
+|---------|-------------|
+| `start` | Start the server as a background daemon (default if no argument given) |
+| `stop`  | Stop a running daemon |
+
 ## Configuration
 
 Create a `config.yaml` in the working directory or next to the binary:
@@ -78,14 +89,6 @@ All endpoints return JSON:
 
 ```json
 {"status": "ok", "message": "Wake-on-LAN packet sent to 00:11:32:CA:B0:95"}
-```
-
-## Cross-Compiling
-
-Build for a Raspberry Pi or other Linux ARM device:
-
-```bash
-GOOS=linux GOARCH=arm64 go build -o nas-control .
 ```
 
 ## Running Tests
