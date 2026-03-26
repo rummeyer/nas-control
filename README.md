@@ -1,6 +1,6 @@
 # NAS Control
 
-A lightweight HTTP server to remotely control a Synology NAS from your local network.
+A lightweight HTTP server to remotely control a Synology NAS from your local network. Runs as a background daemon and provides a minimal web UI plus a JSON API for wake, shutdown, and status checks.
 
 ## Features
 
@@ -8,22 +8,48 @@ A lightweight HTTP server to remotely control a Synology NAS from your local net
 - **Shutdown** — graceful shutdown via the Synology DSM API
 - **Status check** — ICMP ping (with TCP fallback) to detect online/offline state
 - **Web UI** — minimal single-page dashboard
+- **Daemon mode** — runs in the background with start/stop commands
 - **Local-only access** — requests from public IPs are rejected
 
 ## Quick Start
 
 ```bash
 go build -o nas-control .
-./nas-control
+./nas-control start
 ```
 
-The server starts on `0.0.0.0:7654` by default. Open `http://localhost:7654` in your browser.
+This starts the server as a background daemon on `0.0.0.0:7654` (default). Open `http://<host>:7654` in your browser.
 
-### Override listen address
+To stop the server:
 
 ```bash
-./nas-control 0.0.0.0:8080
+./nas-control stop
 ```
+
+Log output is written to `nas-control.log` next to the binary.
+
+## Configuration
+
+Create a `config.yaml` in the working directory or next to the binary:
+
+```yaml
+listen_addr: "0.0.0.0:7654"
+nas:
+  url: "http://192.168.1.100:5000"
+  user: "nas-control"
+  pass: "your-password"
+  mac: "00:11:32:CA:B0:95"
+```
+
+| Field | Description |
+|-------|-------------|
+| `listen_addr` | Address and port the server listens on |
+| `nas.url` | Base URL of the Synology DSM web interface |
+| `nas.user` | DSM user for API access (see below) |
+| `nas.pass` | Password for the DSM user |
+| `nas.mac` | MAC address of the NAS (for Wake-on-LAN) |
+
+If no config file is found, built-in defaults are used.
 
 ## DSM User Setup
 
@@ -38,22 +64,7 @@ The shutdown feature requires a dedicated DSM user. **Do not use your main admin
 
 Use this user's credentials in your `config.yaml`.
 
-## Configuration
-
-Create a `config.yaml` in the working directory or next to the binary:
-
-```yaml
-listen_addr: "0.0.0.0:7654"
-nas:
-  url: "http://192.168.1.100:5000"
-  user: "admin"
-  pass: "your-password"
-  mac: "00:11:32:CA:B0:95"
-```
-
-If no config file is found, built-in defaults are used.
-
-## API Endpoints
+## API
 
 | Method | Path     | Description                    |
 |--------|----------|--------------------------------|
@@ -69,18 +80,6 @@ All endpoints return JSON:
 {"status": "ok", "message": "Wake-on-LAN packet sent to 00:11:32:CA:B0:95"}
 ```
 
-## Tested With
-
-- Synology DSM 7.2 (latest)
-
-## Running Tests
-
-```bash
-go test -v ./...
-```
-
-Note: The ICMP ping test requires raw socket privileges (root or `CAP_NET_RAW`). It is automatically skipped when running unprivileged.
-
 ## Cross-Compiling
 
 Build for a Raspberry Pi or other Linux ARM device:
@@ -88,3 +87,15 @@ Build for a Raspberry Pi or other Linux ARM device:
 ```bash
 GOOS=linux GOARCH=arm64 go build -o nas-control .
 ```
+
+## Running Tests
+
+```bash
+go test -v ./...
+```
+
+The ICMP ping test requires raw socket privileges (root or `CAP_NET_RAW`) and is automatically skipped when running unprivileged.
+
+## Tested With
+
+- Synology DSM 7.2
