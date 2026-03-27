@@ -392,7 +392,7 @@ func main() {
 		}
 
 		client := &http.Client{Timeout: 5 * time.Second}
-		resp, err := client.Post(controlURL(config.ListenAddr)+"/stop", "", nil)
+		resp, err := client.Post(controlURL(config.ListenAddr)+"/kill", "", nil)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "failed to stop server: %v\n", err)
 			os.Exit(1)
@@ -421,12 +421,12 @@ func runServer() {
 	mux.HandleFunc("/on", handleOn)
 	mux.HandleFunc("/off", handleOff)
 	mux.HandleFunc("/state", handleState)
-	mux.HandleFunc("/stop", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/kill", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		log.Println("Shutdown requested via /stop")
+		log.Println("Shutdown requested via /kill")
 		writeJSON(w, http.StatusOK, Response{"ok", "server stopping"})
 		close(shutdown)
 	})

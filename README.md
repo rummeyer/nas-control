@@ -88,7 +88,7 @@ Use this user's credentials in your `config.yaml`.
 | GET    | `/state` | Online/offline status (JSON)   |
 | POST   | `/on`    | Send Wake-on-LAN magic packet  |
 | POST   | `/off`   | Shut down via Synology DSM API |
-| POST   | `/stop`  | Stop the nas-control server    |
+| POST   | `/kill`  | Stop the nas-control server    |
 
 All endpoints return JSON:
 

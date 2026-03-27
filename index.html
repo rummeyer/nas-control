@@ -103,11 +103,11 @@
 
   <div class="api-info">
     <h2>API Endpoints</h2>
-    <div class="endpoint"><span class="method get">GET</span><a class="path" href="/state">/state</a><span class="desc">&mdash; NAS online/offline</span></div>
-    <div class="endpoint"><span class="method get">GET</span><a class="path" href="/info">/info</a><span class="desc">&mdash; NAS connection info</span></div>
-    <div class="endpoint"><span class="method post">POST</span><a class="path" href="/on">/on</a><span class="desc">&mdash; Wake-on-LAN</span></div>
-    <div class="endpoint"><span class="method post">POST</span><a class="path" href="/off">/off</a><span class="desc">&mdash; Shutdown</span></div>
-    <div class="endpoint"><span class="method post">POST</span><a class="path" href="/stop">/stop</a><span class="desc">&mdash; Stop nas-control server</span></div>
+    <div class="endpoint"><span class="method get">GET</span><a class="path" href="/state">/state</a><span class="desc">&mdash; Check if NAS is online</span></div>
+    <div class="endpoint"><span class="method get">GET</span><a class="path" href="/info">/info</a><span class="desc">&mdash; NAS IP, MAC and server version</span></div>
+    <div class="endpoint"><span class="method post">POST</span><a class="path" href="/on">/on</a><span class="desc">&mdash; Send Wake-on-LAN packet</span></div>
+    <div class="endpoint"><span class="method post">POST</span><a class="path" href="/off">/off</a><span class="desc">&mdash; Graceful shutdown via DSM API</span></div>
+    <div class="endpoint"><span class="method post">POST</span><a class="path" href="/kill">/kill</a><span class="desc">&mdash; Stop this server process</span></div>
   </div>
 </div>
 <script>
